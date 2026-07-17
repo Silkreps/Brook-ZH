@@ -1,0 +1,5 @@
+import { defaultRunTimesLondon } from "@/lib/config";
+import { financingInstitutions, monitoredRegions, procurementSections } from "@/lib/taxonomy";
+
+const metrics = ["今日新增项目数量", "今日符合条件项目数量", "今日新增资格预审数量", "今日新增正式招标数量", "今日新增前瞻项目数量", "即将截止项目数量", "今日延期项目数量", "今日补遗项目数量", "今日澄清项目数量", "今日授标项目数量", "今日取消项目数量", "数据源运行状态", "AI运行状态", "最近一次抓取时间", "最近一次推送时间", "今日抓取成功率", "当前监控国家数量", "当前监控机构数量"];
+export default function Home() { return <main className="shell"><h1>全球国际工程招标预警系统</h1><p>仅管理员内部使用；默认按英国时间 {defaultRunTimesLondon.join("、")} 自动运行。</p><section className="grid">{metrics.map((m,i)=><div className="card" key={m}><div>{m}</div><div className="num">{i<11?0:i===16?monitoredRegions.reduce((a,r)=>a+r.countries.length,0):i===17?financingInstitutions.length:"正常"}</div></div>)}</section><nav className="nav">{procurementSections.map(s=><span className="pill" key={s.key}>{s.label}</span>)}</nav><table className="table"><thead><tr><th>板块</th><th>识别关键词</th><th>处理规则</th></tr></thead><tbody>{procurementSections.map(s=><tr key={s.key}><td>{s.label}</td><td>{s.terms.join(" / ")}</td><td>官方链接核验、金额门槛、中国企业资格判断、中文翻译、去重、推送</td></tr>)}</tbody></table></main> }
