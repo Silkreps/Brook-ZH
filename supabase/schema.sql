@@ -14,3 +14,19 @@ create table if not exists reminder_rules (id uuid primary key default gen_rando
 insert into reminder_rules (days_before_deadline, channel) values (30,'telegram'),(14,'telegram'),(7,'telegram'),(3,'telegram'),(1,'telegram'),(0,'telegram'),(30,'email'),(14,'email'),(7,'email'),(3,'email'),(1,'email'),(0,'email') on conflict do nothing;
 create table if not exists project_events (id uuid primary key default gen_random_uuid(), project_id uuid references projects(id) on delete cascade, event_type text not null, title text not null, official_url text, happened_at timestamptz default now(), metadata jsonb default '{}');
 alter table reminder_rules enable row level security; alter table project_events enable row level security;
+
+
+alter table projects add column if not exists source_unique_key text;
+alter table projects add column if not exists procurement_method text;
+alter table projects add column if not exists stage text;
+alter table projects add column if not exists summary_zh text;
+alter table projects add column if not exists package_no text;
+alter table projects add column if not exists review_status text not null default 'pending';
+alter table projects add column if not exists is_favorite boolean not null default false;
+alter table projects add column if not exists participated_company_name text;
+alter table projects add column if not exists completed_at timestamptz;
+create unique index if not exists projects_source_unique_key_idx on projects(source_unique_key) where source_unique_key is not null;
+create table if not exists error_logs (id uuid primary key default gen_random_uuid(), source_key text, project_id uuid references projects(id), message text not null, stack text, created_at timestamptz default now(), resolved_at timestamptz);
+create table if not exists project_reviews (id uuid primary key default gen_random_uuid(), project_id uuid references projects(id) on delete cascade, reviewer uuid, decision text not null, note text, created_at timestamptz default now());
+create table if not exists project_status_history (id uuid primary key default gen_random_uuid(), project_id uuid references projects(id) on delete cascade, status text not null, gate text, changed_at timestamptz default now(), metadata jsonb default '{}');
+alter table error_logs enable row level security; alter table project_reviews enable row level security; alter table project_status_history enable row level security;
