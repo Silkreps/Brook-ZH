@@ -30,3 +30,9 @@ input, select { width: 100%; box-sizing: border-box; padding: 11px 12px; border:
 .auth { max-width: 560px; }
 .login-form { display: grid; gap: 12px; }
 @media (max-width: 720px) { .shell { padding: 18px; } .hero { flex-direction: column; align-items: flex-start; } th, td { padding: 9px; } .metrics .card strong { font-size: 24px; } }
+.admin-module { color: #152033; display: grid; gap: 8px; }
+.admin-module strong { color: #0f6bff; font-size: 18px; }
+.inline-form { display: grid; gap: 8px; min-width: 180px; }
+.result-box, pre { white-space: pre-wrap; word-break: break-word; background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 12px; max-height: 420px; overflow: auto; }
+button.button { border: 0; cursor: pointer; font: inherit; font-weight: 800; }
+button.button:disabled { opacity: .65; cursor: wait; }
