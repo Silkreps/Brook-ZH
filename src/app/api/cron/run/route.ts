@@ -14,3 +14,5 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: String(error) }, { status: 500 });
   }
 }
+
+export async function GET(request: Request) { return POST(request); }

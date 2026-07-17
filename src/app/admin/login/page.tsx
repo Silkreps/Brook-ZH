@@ -1,0 +1,1 @@
+export default function LoginPage(){return <main className="shell auth"><section className="card"><h1>管理员登录</h1><p>后台、人工审核、重新抓取、状态修改和数据源设置均需要管理员会话。</p><form action="/api/admin/login" method="post" className="login-form"><input name="password" type="password" placeholder="管理员密码" required/><button className="button">登录</button></form></section></main>}
