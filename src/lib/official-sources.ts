@@ -1,0 +1,12 @@
+import type { ProjectCandidate, SourceAdapter } from "./types";
+
+async function fetchJson(url: string) { const res = await fetch(url, { headers: { accept: "application/json,text/plain,*/*", "user-agent": "Brook-ZH tender monitor" }, next: { revalidate: 0 } }); if (!res.ok) throw new Error(`${url} ${res.status}`); return res.json(); }
+function official(candidate: ProjectCandidate) { return candidate; }
+
+export const officialSourceAdapters: SourceAdapter[] = [
+  { key: "world-bank", agencyName: "World Bank Procurement", homepage: "https://projects.worldbank.org/en/projects-operations/procurement", crawlEntry: "https://search.worldbank.org/api/v2/procnotices", kind: "api", enabled: true, async fetchCandidates() { const data = await fetchJson("https://search.worldbank.org/api/v2/procnotices?format=json&rows=20&os=0"); const rows = Object.values(data?.procnotices ?? {}) as any[]; return rows.map((r) => official({ sourceKey: "world-bank", section: /prequalification|pre-qualification/i.test(r.procurement_method || r.notice_type || "") ? "prequalification" : "tender", titleEn: r.notice_title || r.project_name || "", country: r.country, owner: r.borrower_country, financier: "World Bank", procurementNo: r.notice_number, publishedAt: r.publication_date, deadlineAt: r.submission_deadline_date, procurementMethod: r.procurement_method, stage: r.notice_type, officialUrl: r.url || r.notice_url, noticeText: r.notice_text })).filter((r) => r.titleEn && r.officialUrl); } },
+  { key: "adb", agencyName: "Asian Development Bank Business Opportunities", homepage: "https://www.adb.org/projects/tenders", crawlEntry: "https://www.adb.org/projects/tenders", kind: "html", enabled: true, async fetchCandidates() { return []; } },
+  { key: "afdb", agencyName: "African Development Bank Procurement Notices", homepage: "https://www.afdb.org/en/projects-and-operations/procurement", crawlEntry: "https://www.afdb.org/en/projects-and-operations/procurement", kind: "html", enabled: true, async fetchCandidates() { return []; } },
+  { key: "isdb", agencyName: "Islamic Development Bank Procurement", homepage: "https://www.isdb.org/project-procurement", crawlEntry: "https://www.isdb.org/project-procurement", kind: "html", enabled: true, async fetchCandidates() { return []; } },
+  { key: "ebrd", agencyName: "European Bank for Reconstruction and Development Client e-Procurement", homepage: "https://ecepp.ebrd.com/", crawlEntry: "https://ecepp.ebrd.com/", kind: "html", enabled: true, async fetchCandidates() { return []; } },
+];

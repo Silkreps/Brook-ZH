@@ -3,9 +3,10 @@ import { notFound } from "next/navigation";
 import { getProjectById, sectionLabels } from "@/lib/projects";
 import type { ProcurementSection } from "@/lib/types";
 
-export default function ProjectDetailPage({ params }: { params: { section: ProcurementSection; id: string } }) {
-  const project = getProjectById(params.id);
-  if (!project || project.section !== params.section) notFound();
+export default async function ProjectDetailPage({ params }: { params: Promise<{ section: ProcurementSection; id: string }> }) {
+  const { section, id } = await params;
+  const project = await getProjectById(id);
+  if (!project || project.section !== section) notFound();
 
   const fields = [
     ["中文项目名称", project.titleZh], ["英文项目名称", project.titleEn], ["国家", project.country], ["区域", project.region], ["行业", project.industry],
