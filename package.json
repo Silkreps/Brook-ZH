@@ -5,7 +5,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/lib/database.types.ts"
+    "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/lib/database.types.ts",
+    "check:conflicts": "node scripts/check-conflicts.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",

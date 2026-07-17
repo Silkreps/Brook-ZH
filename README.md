@@ -24,3 +24,7 @@
 
 ## 下一阶段
 接入首批官方数据源适配器，替换当前内置样例数据；随后接入 OpenAI 抽取/翻译流水线、链接有效性检测、去重合并和 Supabase 持久化写入。
+
+## 合并冲突检查
+- 使用 `npm run check:conflicts` 或 `node scripts/check-conflicts.mjs` 扫描未解决的 Git 冲突标记。
+- 当前环境未提供 `origin` 或本地 `main` 引用，无法在容器内直接执行真实的 `git merge main`；详见 `docs/merge-resolution.md`。
