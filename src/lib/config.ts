@@ -9,6 +9,8 @@ const scheduleSchema = z.object({
   TELEGRAM_CHAT_ID: z.string().optional(),
   SMTP_URL: z.string().optional(),
   ALERT_EMAIL_TO: z.string().email().optional(),
+  ADMIN_PASSWORD: z.string().optional(),
+  ADMIN_SESSION_TOKEN: z.string().optional(),
 });
 
 export const env = scheduleSchema.parse(process.env);
