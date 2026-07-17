@@ -1,0 +1,2 @@
+import { amountThresholdsUsd, defaultRunTimesLondon } from "@/lib/config";
+export default function AdminPage(){return <main className="shell"><h1>后台管理</h1><div className="grid">{["Dashboard","项目管理","收藏","重点项目","已联系业主","已购买标书","已报名资格预审","已投标","已放弃","已授标","项目完成","待人工核实","数据源管理","运行日志","错误日志","AI日志","推送日志","系统设置","管理员设置","金额门槛设置","国家管理","区域管理","行业管理","用户权限"].map(x=><div className="card" key={x}>{x}</div>)}</div><p>默认运行时间（英国）：{defaultRunTimesLondon.join("、")}；金额门槛：{amountThresholdsUsd.map(v=>`$${v/1_000_000}M`).join("、")}</p></main>}
