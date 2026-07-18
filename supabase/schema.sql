@@ -45,3 +45,16 @@ create index if not exists project_links_project_id_idx on project_links(project
 alter table run_logs add column if not exists fetched_count int default 0;
 alter table run_logs add column if not exists success_count int default 0;
 create index if not exists projects_dashboard_idx on projects(section, created_at, deadline_at);
+
+-- Public visibility and AI/translation state (safe to rerun in Supabase SQL Editor).
+alter table projects add column if not exists translation_status text not null default 'pending'
+  check (translation_status in ('translated','pending','failed'));
+alter table projects add column if not exists ai_analysis_status text not null default 'pending'
+  check (ai_analysis_status in ('success','pending','failed'));
+update projects set translation_status = 'translated'
+where title_zh ~ '[\u3400-\u9fff]' and title_zh <> '待翻译' and translation_status = 'pending';
+update projects set ai_analysis_status = 'success'
+where ai_analyzed_at is not null and ai_analysis_status = 'pending';
+create index if not exists projects_public_filter_idx
+  on projects(section, translation_status, status, deadline_at, created_at desc);
+create index if not exists projects_favorites_idx on projects(updated_at desc) where is_favorite = true;
