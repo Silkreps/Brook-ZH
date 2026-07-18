@@ -2,6 +2,7 @@ import { env } from "@/lib/config";
 import { isAdminSession } from "@/lib/admin-auth";
 import { sendEmail, sendTelegram } from "@/lib/notifications";
 import { runProcurementCycle } from "@/lib/scraper";
+import { formatUnknownError } from "@/lib/error-utils";
 
 export async function POST(request: Request) {
   const secret = request.headers.get("x-cron-secret");
@@ -11,8 +12,8 @@ export async function POST(request: Request) {
     await sendTelegram(`全球国际工程项目扫描完成：待人工核实 ${result.pendingReview} 条`);
     return Response.json({ ok: true, result });
   } catch (error) {
-    await sendEmail("招标预警系统运行失败", error instanceof Error ? error.message : String(error));
-    return Response.json({ ok: false, error: String(error) }, { status: 500 });
+    await sendEmail("招标预警系统运行失败", formatUnknownError(error));
+    return Response.json({ ok: false, error: formatUnknownError(error) }, { status: 500 });
   }
 }
 

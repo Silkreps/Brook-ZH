@@ -25,8 +25,18 @@ alter table projects add column if not exists review_status text not null defaul
 alter table projects add column if not exists is_favorite boolean not null default false;
 alter table projects add column if not exists participated_company_name text;
 alter table projects add column if not exists completed_at timestamptz;
-create unique index if not exists projects_source_unique_key_idx on projects(source_unique_key) where source_unique_key is not null;
+drop index if exists projects_source_unique_key_idx;
+create unique index if not exists projects_source_unique_key_idx on projects(source_unique_key);
 create table if not exists error_logs (id uuid primary key default gen_random_uuid(), source_key text, project_id uuid references projects(id), message text not null, stack text, created_at timestamptz default now(), resolved_at timestamptz);
 create table if not exists project_reviews (id uuid primary key default gen_random_uuid(), project_id uuid references projects(id) on delete cascade, reviewer uuid, decision text not null, note text, created_at timestamptz default now());
 create table if not exists project_status_history (id uuid primary key default gen_random_uuid(), project_id uuid references projects(id) on delete cascade, status text not null, gate text, changed_at timestamptz default now(), metadata jsonb default '{}');
 alter table error_logs enable row level security; alter table project_reviews enable row level security; alter table project_status_history enable row level security;
+
+-- Ensure crawler upserts match Supabase conflict targets and service inserts.
+create unique index if not exists data_sources_agency_name_idx on data_sources(agency_name);
+alter table projects alter column country set default '待人工核实';
+alter table projects alter column financier set default '待人工核实';
+alter table projects alter column title_zh set default '待人工核实';
+alter table projects alter column title_en set default '待人工核实';
+alter table projects alter column risks_zh set default '[]'::jsonb;
+create index if not exists project_links_project_id_idx on project_links(project_id);
