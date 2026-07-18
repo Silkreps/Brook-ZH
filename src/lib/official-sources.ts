@@ -25,7 +25,7 @@ function genericCandidate(key: string, financier: string, row: AnyRow, base: str
   if (!titleEn || !officialUrl) return null;
   return official({
     sourceKey: key, section: inferSection(row), titleEn, officialUrl,
-    country: first(row, ["country", "country_name", "borrower_country"]),
+    country: first(row, ["country", "country_name", "countryName", "country_code", "countryCode", "iso2", "iso3", "borrower_country"]),
     owner: first(row, ["owner", "borrower", "executing_agency", "agency"]), financier,
     procurementNo: first(row, ["procurementNo", "notice_number", "id", "nid", "reference", "ref"]),
     packageNo: first(row, ["packageNo", "package_no", "contract_no"]), amount: first(row, ["amount", "estimated_amount"]),
@@ -70,7 +70,7 @@ async function fetchWorldBankCandidates() {
   return rows.map((r) => {
     const id = first(r, ["id", "noticeid", "notice_id", "guid", "notice_number"]);
     const detailUrl = absoluteUrl(first(r, ["url", "notice_url", "link"]), url) || (id ? `https://projects.worldbank.org/en/projects-operations/procurement-detail/${encodeURIComponent(id)}` : undefined);
-    return genericCandidate("world-bank", "World Bank", { ...r, title: first(r, ["notice_title", "project_name", "bid_description", "title"]), url: detailUrl, country: first(r, ["country", "country_name"]), owner: first(r, ["borrower_country", "borrower", "agency"]), description: first(r, ["notice_text", "bid_description", "project_name"]), deadline: first(r, ["submission_deadline_date", "deadline_date"]), publishedAt: first(r, ["publication_date"]), procurementMethod: first(r, ["procurement_method", "procurement_category"]), noticeType: first(r, ["notice_type"]), procurementNo: id }, url);
+    return genericCandidate("world-bank", "World Bank", { ...r, title: first(r, ["notice_title", "project_name", "bid_description", "title"]), url: detailUrl, country: first(r, ["country", "country_name", "country_code", "countrycode", "iso2", "iso3", "borrower_country"]), owner: first(r, ["borrower_country", "borrower", "agency"]), description: first(r, ["notice_text", "bid_description", "project_name"]), deadline: first(r, ["submission_deadline_date", "deadline_date"]), publishedAt: first(r, ["publication_date"]), procurementMethod: first(r, ["procurement_method", "procurement_category"]), noticeType: first(r, ["notice_type"]), procurementNo: id }, url);
   }).filter(Boolean) as ProjectCandidate[];
 }
 

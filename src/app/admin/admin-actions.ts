@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isAdminSession } from "@/lib/admin-auth";
 import { getServiceSupabase } from "@/lib/supabase";
+import { isChinaCountry, UNKNOWN_COUNTRY } from "@/lib/countries";
 
 async function requireAdmin() {
   if (!(await isAdminSession())) redirect("/admin/login");
@@ -31,10 +32,11 @@ export async function reviewProject(formData: FormData) {
   const decision = String(formData.get("decision") ?? "");
   if (!id || !["approved", "rejected"].includes(decision)) throw new Error("无效的审核操作");
   const supabase = getServiceSupabase();
-  const { data: project, error: readError } = await supabase.from("projects").select("status,review_status,gate").eq("id", id).single();
+  const { data: project, error: readError } = await supabase.from("projects").select("status,review_status,gate,country,title_en").eq("id", id).single();
   if (readError) throw readError;
   if (project.review_status !== "pending" || project.gate !== "pending_review") throw new Error("项目已被审核，请刷新页面");
   const approved = decision === "approved";
+  if (approved && (isChinaCountry(project.country, project.title_en) || project.country === UNKNOWN_COUNTRY || project.country === "待人工核实")) throw new Error("中国项目或国家未识别项目禁止进入正式项目库");
   const status = approved && project.status === "待人工核实" ? "未截止" : project.status;
   const gate = approved ? "official" : "blocked";
   const { error } = await supabase.from("projects").update({ status, review_status: decision, gate, updated_at: new Date().toISOString() }).eq("id", id).eq("review_status", "pending").eq("gate", "pending_review");

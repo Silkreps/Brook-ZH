@@ -4,6 +4,7 @@ import { getServiceSupabase } from "./supabase";
 import { officialSourceAdapters } from "./official-sources";
 import type { ProjectCandidate, RunSummary } from "./types";
 import { formatSupabaseError, formatUnknownError } from "./error-utils";
+import { resolveCountry } from "./countries";
 
 const CLOSED = /closed|awarded|cancelled|canceled|授标|取消|截止/i;
 const LOCAL_ONLY = /national bidders only|domestic bidders only|local bidders only|仅限本国/i;
@@ -14,7 +15,7 @@ export async function runProcurementCycle(): Promise<RunSummary> {
   let fetched = 0, filtered = 0, inserted = 0, updated = 0, pendingReview = 0, failed = 0; const errors: string[] = []; const records: RunSummary["records"] = []; const sources: RunSummary["sources"] = [];
   for (const source of officialSourceAdapters.filter(s=>s.enabled)) {
     try { await supabase.from("data_sources").upsert({ agency_name: source.agencyName, homepage: source.homepage, crawl_entry: source.crawlEntry, crawl_method: source.kind, enabled: true, updated_at: new Date().toISOString() }, { onConflict: "agency_name" });
-      const rawCandidates = await withRetry(() => source.fetchCandidates(), 2); const candidates = rawCandidates.filter(isAllowedCandidate); const sourceSummary = { key: source.key, agencyName: source.agencyName, fetched: rawCandidates.length, filtered: rawCandidates.length - candidates.length, inserted: 0, updated: 0, pendingReview: 0, failed: 0 }; fetched += rawCandidates.length; filtered += sourceSummary.filtered;
+      const rawCandidates = await withRetry(() => source.fetchCandidates(), 2); const candidates = rawCandidates.map(normalizeCandidateCountry).filter((c) => !resolveCountry(c.country, c.titleEn).isChina).filter(isAllowedCandidate); const sourceSummary = { key: source.key, agencyName: source.agencyName, fetched: rawCandidates.length, filtered: rawCandidates.length - candidates.length, inserted: 0, updated: 0, pendingReview: 0, failed: 0 }; fetched += rawCandidates.length; filtered += sourceSummary.filtered;
       for (const c of candidates) { try { const saved = await saveCandidate(c); inserted += saved.inserted; updated += saved.updated; pendingReview += saved.pendingReview; sourceSummary.inserted += saved.inserted; sourceSummary.updated += saved.updated; sourceSummary.pendingReview += saved.pendingReview; records.push({ id: saved.id, title: c.titleEn, gate: saved.gate, officialUrl: c.officialUrl }); } catch (e) { failed += 1; sourceSummary.failed += 1; const message = `${source.agencyName} 保存失败 ${c.titleEn}: ${formatUnknownError(e)}`; errors.push(message); await supabase.from("error_logs").insert({ source_key: source.key, message }); } } sources.push(sourceSummary);
       await supabase.from("data_sources").update({ last_success_at: new Date().toISOString(), consecutive_failures: 0, fetched_count: rawCandidates.length, inserted_count: sourceSummary.inserted }).eq("agency_name", source.agencyName);
     } catch (e) { const message = `${source.agencyName}: ${formatUnknownError(e)}`; errors.push(message); sources.push({ key: source.key, agencyName: source.agencyName, fetched: 0, filtered: 0, inserted: 0, updated: 0, pendingReview: 0, failed: 0, error: message }); await supabase.from("error_logs").insert({ source_key: source.key, message }); await supabase.from("data_sources").update({ last_failure_at: new Date().toISOString() }).eq("agency_name", source.agencyName); }
@@ -24,13 +25,13 @@ export async function runProcurementCycle(): Promise<RunSummary> {
 }
 
 function isAllowedCandidate(c: ProjectCandidate) { const text = `${c.titleEn} ${c.procurementMethod ?? ""} ${c.stage ?? ""} ${c.noticeText ?? ""}`; if (!c.officialUrl || !/^https:\/\//.test(c.officialUrl)) return false; if (CLOSED.test(text) || LOCAL_ONLY.test(text)) return false; if (c.deadlineAt && new Date(c.deadlineAt).getTime() <= Date.now()) return false; return c.section === "pipeline" || isEngineeringProcurement({ procurementType: c.procurementMethod, stage: c.stage, title: c.titleEn, noticeText: c.noticeText }); }
-async function saveCandidate(c: ProjectCandidate) { const supabase = getServiceSupabase(); const linkOk = await checkOfficialDetailLink(c.officialUrl); const ai = await analyzeProject(c); const amountUsd = normalizeAmount(c.amount, c.currency); const gateText = decideProjectGate({ isInternationalOpen: true, chinaEligible: ai.chinaParticipation === "可以参与" ? true : null, amountUsd, deadline: c.deadlineAt, officialLinkValid: linkOk, authentic: true, procurementType: c.procurementMethod, stage: c.stage, title: c.titleEn, noticeText: c.noticeText, country: c.country }); const gate = gateText === "正式项目库" ? "official" : gateText === "禁止推送" ? "blocked" : "pending_review"; const key = buildSourceKey(c);
+async function saveCandidate(c: ProjectCandidate) { const country = resolveCountry(c.country, c.titleEn); if (country.isChina) throw new Error("安全拦截：中国项目禁止写入 Supabase"); const supabase = getServiceSupabase(); const linkOk = await checkOfficialDetailLink(c.officialUrl); const ai = await analyzeProject(c); const amountUsd = normalizeAmount(c.amount, c.currency); const gateText = decideProjectGate({ isInternationalOpen: true, chinaEligible: country.recognized && ai.chinaParticipation === "可以参与" ? true : null, amountUsd, deadline: c.deadlineAt, officialLinkValid: linkOk, authentic: true, procurementType: c.procurementMethod, stage: c.stage, title: c.titleEn, noticeText: c.noticeText, country: country.country }); const gate = !country.recognized ? "pending_review" : gateText === "正式项目库" ? "official" : gateText === "禁止推送" ? "blocked" : "pending_review"; const key = buildSourceKey(c);
   const payload = {
     section: c.section,
     gate,
     title_zh: requiredText(ai.titleZh, c.titleEn),
     title_en: requiredText(c.titleEn, "待人工核实"),
-    country: requiredText(c.country, "待人工核实"),
+    country: country.country,
     financier: requiredText(c.financier, "待人工核实"),
     owner: nullableText(c.owner),
     procurement_no: nullableText(c.procurementNo),
@@ -74,6 +75,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts: number): Promise<T> 
 function normalizeAmount(amount?: string, currency = "USD") { if (!amount) return null; const n = Number(amount.replace(/[^0-9.]/g, "")); if (!Number.isFinite(n) || n <= 0) return null; return n; }
 
 function buildSourceKey(c: ProjectCandidate) { return `${c.sourceKey}:${c.procurementNo || c.officialUrl}`.slice(0, 500); }
+function normalizeCandidateCountry(c: ProjectCandidate): ProjectCandidate { return { ...c, country: resolveCountry(c.country, c.titleEn).country }; }
 function requiredText(value: unknown, fallback: string) { const normalized = nullableText(value); return normalized ?? fallback; }
 function nullableText(value: unknown) { const normalized = String(value ?? "").replace(/\s+/g, " ").trim(); return normalized || null; }
 function nullableIsoDate(value: unknown) { const text = nullableText(value); if (!text) return null; const time = Date.parse(text); return Number.isFinite(time) ? new Date(time).toISOString() : null; }
