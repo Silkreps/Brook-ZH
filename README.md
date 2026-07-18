@@ -6,7 +6,7 @@
 - 中文首页仪表盘、三大项目板块、项目列表、项目详情、收藏/重点项目字段、已参与企业、完成后移除、运行日志、错误日志、数据源管理入口。
 - 项目搜索、筛选、排序、分页：支持国家、地区、行业、采购阶段、金额、发布日期、截止日期、融资机构、中国企业可参与状态和项目状态。
 - 官方链接有效性检查：列表“详情”按钮直达真实官方公告/采购包详情页；无效链接项目不会进入正式项目库。
-- 统一抓取流程：World Bank API 已接入；ADB、AfDB、IsDB、EBRD 为可配置官方 JSON/API 适配器，未配置时记录“未配置”，不会伪造成功或虚假项目。
+- 统一抓取流程：World Bank 官方采购公告 API 已接入；ADB、AfDB、IsDB、EBRD 已接入官方 RSS/API/公告页适配器，并优先使用 `SOURCE_*_JSON_URL` / `SOURCE_*_RSS_URL` 覆盖。
 - 准入规则：仅保留国际公开工程招标/资格预审/前瞻项目；全球金额门槛 1000 万美元，加勒比地区 400 万美元；剔除已截止、已授标、已取消、仅限本国企业、监理咨询和非工程项目。
 - 管理员登录与权限保护：`/admin` 需服务端 HttpOnly Cookie；服务密钥、OpenAI Key、Telegram Token、SMTP 密码仅在服务端环境变量读取。
 - Telegram、电子邮件、每日汇总、截止提醒和抓取失败告警基础能力；未配置密钥时安全跳过并在后台显示“未配置”。
@@ -20,7 +20,7 @@
 - 可选：`OPENAI_API_KEY`
 - 可选：`TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`
 - 可选：`SMTP_URL`、`ALERT_EMAIL_TO`
-- 可选数据源入口：`SOURCE_ADB_JSON_URL`、`SOURCE_AFDB_JSON_URL`、`SOURCE_ISDB_JSON_URL`、`SOURCE_EBRD_JSON_URL`；可用 `SOURCE_*_ENABLED=false` 暂停某源。
+- 可选数据源入口：`SOURCE_ADB_JSON_URL`、`SOURCE_ADB_RSS_URL`、`SOURCE_AFDB_JSON_URL`、`SOURCE_AFDB_RSS_URL`、`SOURCE_ISDB_JSON_URL`、`SOURCE_ISDB_RSS_URL`、`SOURCE_EBRD_JSON_URL`、`SOURCE_EBRD_RSS_URL`；可用 `SOURCE_*_ENABLED=false` 暂停某源。
 
 ## 部署步骤
 1. 在 Supabase SQL Editor 执行 `supabase/schema.sql`。
@@ -36,5 +36,5 @@
 - 后台：`/admin/login` → `/admin`
 - 健康检查：`/api/health`
 
-## 尚未直接接入的平台
-ADB、AfDB、IsDB、EBRD 的公开页面通常存在动态检索、登录或反爬限制。本系统已提供生产可配置适配器，需用户提供官方 JSON/API/RSS 入口或授权采购平台 API 后启用；未配置前不会写入项目，也不会报告虚假成功。
+## 官方来源抓取说明
+ADB、AfDB、IsDB、EBRD 会直接尝试官方 RSS、JSON/API 或官方公告页面解析；如某机构调整页面结构或要求授权，可通过 `SOURCE_*_JSON_URL` / `SOURCE_*_RSS_URL` 指向新的官方入口。系统只保存真实官方链接，不使用演示数据或伪造项目；每次运行会返回各来源 fetched/filtered/inserted/updated/failed/error 明细。
