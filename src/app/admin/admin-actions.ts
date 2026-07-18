@@ -24,3 +24,12 @@ export async function updateProjectStatus(formData: FormData) {
   revalidatePath("/admin/project-management");
   revalidatePath("/admin/manual-review");
 }
+
+export async function toggleFavorite(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const favorite = String(formData.get("favorite")) !== "true";
+  const { error } = await getServiceSupabase().from("projects").update({ is_favorite: favorite, updated_at: new Date().toISOString() }).eq("id", id);
+  if (error) throw error;
+  revalidatePath("/", "layout");
+}

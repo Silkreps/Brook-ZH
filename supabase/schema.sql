@@ -22,6 +22,7 @@ alter table projects add column if not exists stage text;
 alter table projects add column if not exists summary_zh text;
 alter table projects add column if not exists package_no text;
 alter table projects add column if not exists review_status text not null default 'pending';
+alter table projects add column if not exists amount_currency text default 'USD';
 alter table projects add column if not exists is_favorite boolean not null default false;
 alter table projects add column if not exists participated_company_name text;
 alter table projects add column if not exists completed_at timestamptz;
@@ -40,3 +41,7 @@ alter table projects alter column title_zh set default '待人工核实';
 alter table projects alter column title_en set default '待人工核实';
 alter table projects alter column risks_zh set default '[]'::jsonb;
 create index if not exists project_links_project_id_idx on project_links(project_id);
+
+alter table run_logs add column if not exists fetched_count int default 0;
+alter table run_logs add column if not exists success_count int default 0;
+create index if not exists projects_dashboard_idx on projects(section, created_at, deadline_at);
