@@ -10,4 +10,11 @@ export async function analyzeProject(candidate: ProjectCandidate): Promise<Pick<
   const parsed = JSON.parse(json.choices?.[0]?.message?.content ?? "{}");
   return { ...fallback(candidate), ...parsed, stars: scoreToStars(Number(parsed.score ?? 50)) };
 }
-function fallback(candidate: ProjectCandidate) { const score = 45; return { titleZh: candidate.titleEn, summaryZh: "未配置 OpenAI，已保存官方原始项并等待人工审核。", scopeZh: "待人工核实", qualificationRequirementsZh: "待人工核实", riskTipsZh: ["待人工核实"], credibility: 40, score, stars: scoreToStars(score), chinaParticipation: "待人工核实" as const, jointVentureRequirement: "待人工核实", localRegistrationRequirement: "待人工核实" }; }
+function fallback(candidate: ProjectCandidate) { const score = 45; return { titleZh: fallbackChineseTitle(candidate.titleEn, candidate.country), summaryZh: "未配置 OpenAI，已保存官方原始项并等待人工审核。", scopeZh: "待人工核实", qualificationRequirementsZh: "待人工核实", riskTipsZh: ["待人工核实"], credibility: 40, score, stars: scoreToStars(score), chinaParticipation: "待人工核实" as const, jointVentureRequirement: "待人工核实", localRegistrationRequirement: "待人工核实" }; }
+
+function fallbackChineseTitle(title: string, country?: string) {
+  const text = title.toLowerCase();
+  const kind = /bridge/.test(text) ? "桥梁" : /road|highway/.test(text) ? "道路" : /rail/.test(text) ? "铁路" : /water|wastewater/.test(text) ? "供排水" : /power|transmission/.test(text) ? "电力" : /port/.test(text) ? "港口" : /airport/.test(text) ? "机场" : "工程建设";
+  const action = /rehabilitat|upgrade/.test(text) ? "改造" : /design.?build/.test(text) ? "设计施工" : "施工";
+  return `${country && country !== "待人工核实" ? country : "海外"}${kind}${action}项目（中文待校核）`;
+}

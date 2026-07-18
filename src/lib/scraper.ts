@@ -19,7 +19,7 @@ export async function runProcurementCycle(): Promise<RunSummary> {
       await supabase.from("data_sources").update({ last_success_at: new Date().toISOString(), consecutive_failures: 0, fetched_count: rawCandidates.length, inserted_count: sourceSummary.inserted }).eq("agency_name", source.agencyName);
     } catch (e) { const message = `${source.agencyName}: ${formatUnknownError(e)}`; errors.push(message); sources.push({ key: source.key, agencyName: source.agencyName, fetched: 0, filtered: 0, inserted: 0, updated: 0, pendingReview: 0, failed: 0, error: message }); await supabase.from("error_logs").insert({ source_key: source.key, message }); await supabase.from("data_sources").update({ last_failure_at: new Date().toISOString() }).eq("agency_name", source.agencyName); }
   }
-  const finishedAt = new Date().toISOString(); await supabase.from("run_logs").update({ finished_at: finishedAt, status: errors.length ? "partial_failed" : "success", scanned_sources: officialSourceAdapters.length, new_count: inserted, error: errors.join("\n") || null }).eq("id", run?.id);
+  const finishedAt = new Date().toISOString(); await supabase.from("run_logs").update({ finished_at: finishedAt, status: errors.length ? "partial_failed" : "success", scanned_sources: officialSourceAdapters.length, fetched_count: fetched, success_count: inserted + updated, new_count: inserted, error: errors.join("\n") || null }).eq("id", run?.id);
   return { startedAt, finishedAt, scannedSources: officialSourceAdapters.filter(s=>s.enabled).length, fetched, filtered, inserted, updated, pendingReview, failed, errors, sources, records };
 }
 
@@ -36,6 +36,7 @@ async function saveCandidate(c: ProjectCandidate) { const supabase = getServiceS
     procurement_no: nullableText(c.procurementNo),
     package_no: nullableText(c.packageNo),
     amount_usd: amountUsd,
+    amount_currency: c.currency?.toUpperCase() || "USD",
     amount_is_official: amountUsd !== null,
     deadline_at: nullableIsoDate(c.deadlineAt),
     published_at: nullableIsoDate(c.publishedAt),
@@ -68,7 +69,7 @@ async function saveCandidate(c: ProjectCandidate) { const supabase = getServiceS
 }
 async function checkOfficialDetailLink(url: string) { try { const parsed = new URL(url); if (parsed.protocol !== "https:" || /\/($|search|tenders$|procurement$)/i.test(parsed.pathname)) return false; const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), 15_000); try { let res = await fetch(url, { method: "HEAD", signal: controller.signal }); if (res.status === 405) res = await fetch(url, { method: "GET", signal: controller.signal }); return res.ok; } finally { clearTimeout(timeout); } } catch { return false; } }
 async function withRetry<T>(fn: () => Promise<T>, attempts: number): Promise<T> { let last: unknown; for (let i=0;i<attempts;i++) { try { return await fn(); } catch (e) { last=e; await new Promise(r=>setTimeout(r, 500*(i+1))); } } throw last; }
-function normalizeAmount(amount?: string, currency = "USD") { if (!amount) return null; const n = Number(amount.replace(/[^0-9.]/g, "")); if (!Number.isFinite(n) || n <= 0) return null; const rates: Record<string, number> = { USD: 1, EUR: 1.1, GBP: 1.28, CNY: 0.14 }; return Math.round(n * (rates[currency.toUpperCase()] ?? 1)); }
+function normalizeAmount(amount?: string, currency = "USD") { if (!amount) return null; const n = Number(amount.replace(/[^0-9.]/g, "")); if (!Number.isFinite(n) || n <= 0) return null; return n; }
 
 function buildSourceKey(c: ProjectCandidate) { return `${c.sourceKey}:${c.procurementNo || c.officialUrl}`.slice(0, 500); }
 function requiredText(value: unknown, fallback: string) { const normalized = nullableText(value); return normalized ?? fallback; }
