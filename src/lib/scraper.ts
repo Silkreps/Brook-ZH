@@ -52,7 +52,9 @@ async function saveCandidate(c: ProjectCandidate) { const supabase = getServiceS
     risks_zh: Array.isArray(ai.riskTipsZh) ? ai.riskTipsZh.map(String) : [],
     ai_score: boundedInt(ai.score, 0, 100, 45),
     credibility: boundedInt(ai.credibility, 0, 100, 40),
-    ai_analyzed_at: new Date().toISOString(),
+    ai_analyzed_at: ai.aiAnalysisStatus === "success" ? new Date().toISOString() : null,
+    ai_analysis_status: ai.aiAnalysisStatus,
+    translation_status: ai.translationStatus,
     source_unique_key: key,
     review_status: gate === "official" ? "approved" : "pending",
   };
