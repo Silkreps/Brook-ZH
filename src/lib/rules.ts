@@ -13,6 +13,14 @@ export function isEngineeringProcurement(project: ProjectCandidate) {
   const text = `${project.procurementType ?? ""} ${project.stage ?? ""} ${project.title ?? ""} ${project.noticeText ?? ""}`;
   return ALLOWED.test(text) && !FORBIDDEN_PROCUREMENT.test(text);
 }
+/** Deterministic notice classification; official type/stage takes precedence. */
+export function classifyProcurementSection(project: Pick<ProjectCandidate, "procurementType" | "stage" | "title" | "noticeText">) {
+  const text = `${project.procurementType ?? ""} ${project.stage ?? ""} ${project.title ?? ""} ${project.noticeText ?? ""}`;
+  if (/general procurement notice|project pipeline|procurement plan|\bgpn\b|pipeline|采购计划|前瞻项目/i.test(text)) return "pipeline" as const;
+  if (/pre[ -]?qualification|request for qualification|request for prequalification|\brfq\b|资格审查|资格预审/i.test(text)) return "prequalification" as const;
+  if (/invitation for bids?|request for bids?|\brfb\b|tender|specific procurement notice|招标公告|正式招标/i.test(text)) return "tender" as const;
+  return null;
+}
 export function decideProjectGate(project: ProjectCandidate): GateDecision {
   const text = `${project.procurementType ?? ""} ${project.stage ?? ""} ${project.title ?? ""} ${project.noticeText ?? ""}`;
   if (project.awarded || project.cancelled || project.officialLinkValid === false || project.authentic === false || FORBIDDEN_PROCUREMENT.test(text)) return "禁止推送";

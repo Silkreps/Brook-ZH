@@ -1,6 +1,7 @@
 export const adminModules = [
   { slug: "dashboard", label: "Dashboard", desc: "后台概览与快捷入口" },
   { slug: "project-management", label: "项目管理", desc: "查看项目并修改业务状态" },
+  { slug: "cleanup", label: "数据清理与重分类", desc: "删除中国/无效项目，修复国家并重新分类" },
   { slug: "favorites", label: "收藏", desc: "查看收藏项目" },
   { slug: "key-projects", label: "重点项目", desc: "按评分筛选重点项目" },
   { slug: "contacted-owners", label: "已联系业主", desc: "查看已联系业主项目" },

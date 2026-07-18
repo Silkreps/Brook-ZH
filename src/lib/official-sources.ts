@@ -1,4 +1,5 @@
 import type { ProjectCandidate, SourceAdapter } from "./types";
+import { classifyProcurementSection } from "./rules";
 
 const USER_AGENT = "Brook-ZH tender monitor (official-source crawler)";
 
@@ -18,7 +19,7 @@ function official(candidate: ProjectCandidate) { return candidate; }
 function text(value: unknown) { return String(value ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
 function first(row: AnyRow, keys: string[]) { for (const key of keys) { const value = row[key]; if (value !== undefined && value !== null && String(value).trim()) return text(value); } return undefined; }
 function absoluteUrl(url: string | undefined, base: string) { if (!url) return undefined; try { return new URL(url, base).toString(); } catch { return undefined; } }
-function inferSection(row: AnyRow) { return /prequalification|pre-qualification|prequalified|pq/i.test(`${first(row, ["stage", "noticeType", "notice_type", "procurement_method", "type", "title"])}`) ? "prequalification" : "tender"; }
+function inferSection(row: AnyRow) { return classifyProcurementSection({ procurementType: first(row, ["procurementMethod", "procurement_method", "method", "category"]), stage: first(row, ["stage", "noticeType", "notice_type", "type"]), title: first(row, ["title", "notice_title"]), noticeText: first(row, ["noticeText", "description", "body", "summary"]) }) ?? "tender"; }
 function genericCandidate(key: string, financier: string, row: AnyRow, base: string): ProjectCandidate | null {
   const officialUrl = absoluteUrl(first(row, ["officialUrl", "url", "link", "guid", "notice_url", "path"]), base);
   const titleEn = first(row, ["title", "titleEn", "notice_title", "name", "subject"]);
@@ -27,10 +28,10 @@ function genericCandidate(key: string, financier: string, row: AnyRow, base: str
     sourceKey: key, section: inferSection(row), titleEn, officialUrl,
     country: first(row, ["country", "country_name", "countryName", "country_code", "countryCode", "iso2", "iso3", "borrower_country"]),
     owner: first(row, ["owner", "borrower", "executing_agency", "agency"]), financier,
-    procurementNo: first(row, ["procurementNo", "notice_number", "id", "nid", "reference", "ref"]),
+    procurementNo: first(row, ["procurementNo", "notice_number", "noticeid", "id", "nid", "reference", "ref"]),
     packageNo: first(row, ["packageNo", "package_no", "contract_no"]), amount: first(row, ["amount", "estimated_amount"]),
     currency: first(row, ["currency"]) || "USD", publishedAt: first(row, ["publishedAt", "publication_date", "published", "created"]),
-    deadlineAt: first(row, ["deadlineAt", "deadline", "submission_deadline_date", "closing_date"]),
+    deadlineAt: first(row, ["deadlineAt", "deadline", "submission_deadline_date", "submission_deadline", "closing_date"]),
     procurementMethod: first(row, ["procurementMethod", "procurement_method", "method", "category"]),
     stage: first(row, ["stage", "noticeType", "notice_type", "type"]), documentUrl: first(row, ["documentUrl", "document_url"]),
     noticeText: first(row, ["noticeText", "description", "body", "summary"]),
@@ -66,7 +67,8 @@ async function fetchOfficialFeed(sourceKey: string, financier: string, urls: str
 async function fetchWorldBankCandidates() {
   const url = "https://search.worldbank.org/api/procnotices?format=json&rows=50&os=0&apilang=en";
   const data = await fetchJson(url);
-  const rows = Object.values(data?.procnotices ?? data?.documents ?? data ?? {}) as AnyRow[];
+  const container = data?.procnotices ?? data?.documents ?? data?.results ?? data;
+  const rows = (Array.isArray(container) ? container : Object.values(container ?? {})).filter((row): row is AnyRow => Boolean(row) && typeof row === "object");
   return rows.map((r) => {
     const id = first(r, ["id", "noticeid", "notice_id", "guid", "notice_number"]);
     const detailUrl = absoluteUrl(first(r, ["url", "notice_url", "link"]), url) || (id ? `https://projects.worldbank.org/en/projects-operations/procurement-detail/${encodeURIComponent(id)}` : undefined);

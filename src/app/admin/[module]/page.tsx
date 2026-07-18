@@ -7,6 +7,7 @@ import { updateProjectStatus } from "../admin-actions";
 
 import { adminModules } from "@/lib/admin-modules";
 import { RecrawlButton } from "./recrawl-button";
+import { CleanupButton } from "./cleanup-button";
 
 type PageProps = { params: Promise<{ module: string }> };
 
@@ -21,6 +22,7 @@ export default async function AdminModulePage({ params }: PageProps) {
 
 async function renderModule(module: string, supabase: ReturnType<typeof getServiceSupabase>) {
   if (module === "recrawl") return <Recrawl />;
+  if (module === "cleanup") return <section className="card"><h2>清理旧数据并重新分类</h2><p>该操作在数据库事务中删除中国项目、重复项目和无官方链接项目，修复国家后按官方公告类型重新分类。</p><CleanupButton /></section>;
   if (module === "run-logs") { const { data } = await supabase.from("run_logs").select("*").order("started_at", { ascending: false }).limit(50); return <LogTable rows={data ?? []} columns={["started_at","finished_at","status","scanned_sources","new_count","error"]} />; }
   if (module === "error-logs") { const { data } = await supabase.from("error_logs").select("*").order("created_at", { ascending: false }).limit(100); return <LogTable rows={data ?? []} columns={["created_at","source_key","message","stack","resolved_at"]} />; }
   if (module === "data-sources") { const { data } = await supabase.from("data_sources").select("*").order("agency_name"); return <><SourceCards rows={data ?? []} /><section className="card"><h2>代码内置官方适配器</h2><ul>{officialSourceAdapters.map((s)=><li key={s.key}><strong>{s.agencyName}</strong>：{s.crawlEntry}；{s.enabled?"启用":"停用"}</li>)}</ul></section></>; }
@@ -28,6 +30,7 @@ async function renderModule(module: string, supabase: ReturnType<typeof getServi
   if (module === "push-logs") { const { data } = await supabase.from("notifications").select("*").order("sent_at", { ascending: false }).limit(100); return <LogTable rows={data ?? []} columns={["sent_at","channel","subject","status","body"]} />; }
   if (module === "link-check") { const { data } = await supabase.from("project_links").select("*, projects(title_zh)").order("last_checked_at", { ascending: false }).limit(100); return <LogTable rows={data ?? []} columns={["link_type","url","http_status","is_official","is_pdf","last_checked_at"]} />; }
   if (module === "ai-logs") return <ProjectTable module="ai-logs" supabase={supabase} />;
+  if (["countries","regions","industries"].includes(module)) return <TaxonomyTable module={module} supabase={supabase} />;
   return <GenericModule module={module} supabase={supabase} />;
 }
 
@@ -48,5 +51,6 @@ async function ProjectTable({ module, supabase }: { module: string; supabase: Re
 function LogTable({ rows, columns }: { rows: any[]; columns: string[] }) { return <div className="wide-table"><table className="table compact"><thead><tr>{columns.map(c=><th key={c}>{c}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={r.id ?? i}>{columns.map(c=><td key={c}>{formatCell(r[c])}</td>)}</tr>)}</tbody></table>{rows.length===0 && <p className="card">暂无记录或 Supabase 尚未配置数据。</p>}</div>; }
 function SourceCards({ rows }: { rows: any[] }) { return <section className="grid">{rows.map((s)=><div className={`card ${s.consecutive_failures ? "warning" : "success"}`} key={s.id}><h3>{s.agency_name}</h3><p>{s.crawl_entry}</p><p>状态：{s.enabled ? "启用" : "停用"}；失败次数：{s.consecutive_failures ?? 0}</p><p>成功：{fmt(s.last_success_at)}；失败：{fmt(s.last_failure_at)}</p></div>)}</section>; }
 async function GenericModule({ module, supabase }: { module: string; supabase: ReturnType<typeof getServiceSupabase> }) { const { count } = await supabase.from("projects").select("id", { count: "exact", head: true }); return <section className="card"><h2>功能入口已启用</h2><p>该栏目不再是静态文字，可独立进入。当前项目总数：{count ?? 0}。</p><p>栏目代码：{module}</p></section>; }
+async function TaxonomyTable({ module, supabase }: { module: string; supabase: ReturnType<typeof getServiceSupabase> }) { const column = module === "countries" ? "country" : module === "regions" ? "region" : "industry"; const { data } = await supabase.from("projects").select(`id,${column}`).limit(5000); const counts = new Map<string,number>(); for (const row of data ?? []) { const value=String((row as any)[column] ?? "未标注"); counts.set(value,(counts.get(value)??0)+1); } return <LogTable rows={[...counts].sort((a,b)=>b[1]-a[1]).map(([name,count])=>({name,count}))} columns={["name","count"]}/>; }
 function formatCell(v: any) { if (v == null) return "-"; if (typeof v === "object") return <pre>{JSON.stringify(v, null, 2)}</pre>; return String(v).slice(0, 800); }
 function fmt(v?: string) { return v ? new Date(v).toLocaleString("zh-CN") : "-"; }
