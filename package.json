@@ -5,6 +5,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/lib/countries.test.ts",
     "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/lib/database.types.ts",
     "check:conflicts": "node scripts/check-conflicts.mjs"
   },

@@ -35,7 +35,7 @@ alter table error_logs enable row level security; alter table project_reviews en
 
 -- Ensure crawler upserts match Supabase conflict targets and service inserts.
 create unique index if not exists data_sources_agency_name_idx on data_sources(agency_name);
-alter table projects alter column country set default '待人工核实';
+alter table projects alter column country set default '国家未识别';
 alter table projects alter column financier set default '待人工核实';
 alter table projects alter column title_zh set default '待人工核实';
 alter table projects alter column title_en set default '待人工核实';
@@ -76,6 +76,62 @@ alter table projects add constraint projects_review_gate_check check (
 );
 create index if not exists projects_review_queue_idx
   on projects(created_at desc) where review_status = 'pending' and gate = 'pending_review';
+
+-- Country data-quality repair. Run this migration before deploying the crawler.
+-- The final SELECT returns: deleted Chinese projects, repaired country fields,
+-- and still-unrecognized projects for the deployment report.
+create table if not exists country_cleanup_runs (
+  id uuid primary key default gen_random_uuid(),
+  deleted_china_count int not null,
+  repaired_country_count int not null,
+  unidentified_country_count int not null,
+  created_at timestamptz not null default now()
+);
+do $$
+declare deleted_count int := 0; repaired_count int := 0; marked_unknown_count int := 0; unknown_count int := 0;
+begin
+  delete from projects where
+    lower(trim(country)) in ('china','cn','chn','中国','people''s republic of china','prc')
+    or concat_ws(' ', country, title_en) ~* '\m(heilongjiang|beijing|shanghai|tianjin|chongqing|hebei|henan|shandong|shanxi|shaanxi|liaoning|jilin|jiangsu|zhejiang|anhui|fujian|jiangxi|hubei|hunan|guangdong|hainan|sichuan|guizhou|yunnan|gansu|qinghai|taiwan|inner mongolia|guangxi|tibet|xinjiang|ningxia|hong kong|macao|macau)\M'
+    or concat_ws(' ', country, title_en) ~ '(黑龙江|北京|上海|天津|重庆|河北|河南|山东|山西|陕西|辽宁|吉林|江苏|浙江|安徽|福建|江西|湖北|湖南|广东|海南|四川|贵州|云南|甘肃|青海|台湾|内蒙古|广西|西藏|新疆|宁夏|香港|澳门)';
+  get diagnostics deleted_count = row_count;
+
+  with candidates as (
+    select id, case
+      when lower(trim(country)) in ('ar','arg','argentina') or title_en ~* '\margentina\M' then '阿根廷'
+      when lower(trim(country)) in ('mx','mex','mexico') or title_en ~* '\mmexico\M' then '墨西哥'
+      when lower(trim(country)) in ('tr','tur','turkey','turkiye','türkiye') or title_en ~* '\m(turkey|turkiye|türkiye)\M' then '土耳其'
+      when lower(trim(country)) in ('br','bra','brazil') or title_en ~* '\mbrazil\M' then '巴西'
+      when lower(trim(country)) in ('in','ind','india') or title_en ~* '\mindia\M' then '印度'
+      else '国家未识别' end as new_country
+    from projects
+  )
+  update projects p set country = c.new_country, gate = 'pending_review', review_status = 'pending', updated_at = now()
+  from candidates c where p.id = c.id and p.country is distinct from c.new_country
+    and (p.country is null or trim(p.country) = '' or p.country = '待人工核实' or c.new_country <> '国家未识别');
+  get diagnostics repaired_count = row_count;
+
+  update projects set country = '国家未识别', gate = 'pending_review', review_status = 'pending', updated_at = now()
+  where country is null or trim(country) = '' or country = '待人工核实';
+  get diagnostics marked_unknown_count = row_count;
+  repaired_count := repaired_count + marked_unknown_count;
+  select count(*) into unknown_count from projects where country = '国家未识别';
+  insert into country_cleanup_runs(deleted_china_count, repaired_country_count, unidentified_country_count)
+    values (deleted_count, repaired_count, unknown_count);
+end $$;
+alter table projects drop constraint if exists projects_country_quality_check;
+alter table projects add constraint projects_country_quality_check check (country <> '待人工核实');
+alter table projects drop constraint if exists projects_country_gate_check;
+alter table projects add constraint projects_country_gate_check check (country <> '国家未识别' or (gate = 'pending_review' and review_status = 'pending'));
+alter table projects drop constraint if exists projects_no_china_check;
+alter table projects add constraint projects_no_china_check check (
+  lower(trim(country)) not in ('china','cn','chn','中国','people''s republic of china','prc')
+  and concat_ws(' ', country, title_en) !~* '\m(heilongjiang|beijing|shanghai|tianjin|chongqing|hebei|henan|shandong|shanxi|shaanxi|liaoning|jilin|jiangsu|zhejiang|anhui|fujian|jiangxi|hubei|hunan|guangdong|hainan|sichuan|guizhou|yunnan|gansu|qinghai|taiwan|inner mongolia|guangxi|tibet|xinjiang|ningxia|hong kong|macao|macau)\M'
+  and concat_ws(' ', country, title_en) !~ '(黑龙江|北京|上海|天津|重庆|河北|河南|山东|山西|陕西|辽宁|吉林|江苏|浙江|安徽|福建|江西|湖北|湖南|广东|海南|四川|贵州|云南|甘肃|青海|台湾|内蒙古|广西|西藏|新疆|宁夏|香港|澳门)'
+);
+create index if not exists projects_country_idx on projects(country);
+select deleted_china_count, repaired_country_count, unidentified_country_count, created_at
+from country_cleanup_runs order by created_at desc limit 1;
 
 -- RLS exposes only approved projects to direct anonymous clients. The server-side
 -- service role is required for the review queue and all review mutations.

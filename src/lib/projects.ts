@@ -2,6 +2,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { FORBIDDEN_PROCUREMENT, isEngineeringProcurement, scoreToStars } from "./rules";
 import { getServiceSupabase } from "./supabase";
 import type { DashboardMetric, ProcurementSection, TenderProject } from "./types";
+import { canAppearInProjectLists, UNKNOWN_COUNTRY } from "./countries";
 
 export const sectionLabels: Record<ProcurementSection, string> = { prequalification: "资格预审", tender: "正式招标", pipeline: "前瞻项目" };
 export type ProjectFilters = { q?: string; country?: string; region?: string; industry?: string; stage?: string; amountMin?: number; publishedFrom?: string; publishedTo?: string; deadlineFrom?: string; deadlineTo?: string; financier?: string; chinaParticipation?: string; status?: string; sort?: string; page?: number; pageSize?: number; today?: boolean; upcoming?: boolean; pending?: boolean };
@@ -16,7 +17,7 @@ export function isApprovedProject(p: TenderProject) { return p.reviewStatus === 
 export function isPublicProject(p: TenderProject) {
   const text = `${p.titleEn} ${p.titleZh} ${p.procurementMethod} ${p.stage} ${p.status}`;
   const deadlineIsValid = !p.deadlineAt || new Date(p.deadlineAt).getTime() > Date.now();
-  return isApprovedProject(p) && hasPublishedChineseTitle(p)
+  return isApprovedProject(p) && hasPublishedChineseTitle(p) && canAppearInProjectLists(p.country, p.titleEn) && p.country !== UNKNOWN_COUNTRY
     && p.links.some((link) => link.isOfficial && link.isValid)
     && !FORBIDDEN_PROCUREMENT.test(text) && !PUBLICLY_CLOSED.test(text)
     && deadlineIsValid && (p.section === "pipeline" || Boolean(p.deadlineAt))
@@ -30,7 +31,7 @@ export async function getProjectsBySection(section: ProcurementSection, filters:
   return filterAndSortProjects((await loadProjects()).filter((p) => p.section === section).filter(isPublicProject), filters);
 }
 export async function getPendingReviewProjects(filters: ProjectFilters = {}) {
-  return filterAndSortProjects((await loadProjects()).filter(isPendingReview), filters);
+  return filterAndSortProjects((await loadProjects()).filter(isPendingReview).filter((p) => canAppearInProjectLists(p.country, p.titleEn)), filters);
 }
 export function filterAndSortProjects(projects: TenderProject[], filters: ProjectFilters) {
   let rows = projects.filter((p) => {
@@ -75,5 +76,5 @@ export function dashboardMetrics(projects: TenderProject[]): DashboardMetric[] {
 }
 function mapProject(row: any): TenderProject {
   const score = Number(row.ai_score ?? 0);
-  return { id: row.id, section: row.section, titleZh: String(row.title_zh ?? "待翻译"), titleEn: row.title_en, country: row.country ?? "官方未公布", region: row.region ?? "官方未公布", industry: row.industry ?? "官方未公布", owner: row.owner ?? "官方未公布", financier: row.financier ?? "官方未公布", procurementNo: row.procurement_no, contractNo: row.contract_no, packageNo: row.package_no, amountUsd: row.amount_usd ? Number(row.amount_usd) : undefined, amountCurrency: row.amount_currency, amountSource: row.amount_is_official ? "官方金额" : "待人工核实", publishedAt: row.published_at, deadlineAt: row.deadline_at, procurementMethod: row.procurement_method ?? "官方未公布", stage: row.stage ?? "官方未公布", jointVentureRequirement: row.joint_venture_requirements ?? "官方未公布", localRegistrationRequirement: row.local_registration_requirements ?? "官方未公布", chinaParticipation: row.china_eligible === true ? "可以参与" : row.china_eligible === false ? "不可参与" : "待人工核实", qualificationRequirementsZh: row.qualification_requirements_zh ?? "官方未公布", scopeZh: row.scope_zh ?? "官方未公布", summaryZh: row.summary_zh ?? "官方未公布", riskTipsZh: row.risks_zh ?? [], score, stars: scoreToStars(score), credibility: row.credibility ?? 0, aiUpdatedAt: row.ai_analyzed_at ?? "", status: row.status, gate: row.gate, links: (row.project_links ?? []).map((link: any) => ({ label: link.link_type, type: link.link_type, url: link.url, isOfficial: link.is_official, isValid: (link.http_status ?? 200) < 400, isPdf: link.is_pdf, httpStatus: link.http_status })), addendaCount: 0, clarificationCount: 0, isFavorite: row.is_favorite, participatedCompanyName: row.participated_company_name, completedAt: row.completed_at, reviewStatus: row.review_status, createdAt: row.created_at, translationStatus: row.translation_status ?? (/[\u3400-\u9fff]/.test(String(row.title_zh ?? "")) ? "translated" : "pending"), aiAnalysisStatus: row.ai_analysis_status ?? (row.ai_analyzed_at ? "success" : "pending") };
+  return { id: row.id, section: row.section, titleZh: String(row.title_zh ?? "待翻译"), titleEn: row.title_en, country: row.country && row.country !== "待人工核实" ? row.country : UNKNOWN_COUNTRY, region: row.region ?? "官方未公布", industry: row.industry ?? "官方未公布", owner: row.owner ?? "官方未公布", financier: row.financier ?? "官方未公布", procurementNo: row.procurement_no, contractNo: row.contract_no, packageNo: row.package_no, amountUsd: row.amount_usd ? Number(row.amount_usd) : undefined, amountCurrency: row.amount_currency, amountSource: row.amount_is_official ? "官方金额" : "待人工核实", publishedAt: row.published_at, deadlineAt: row.deadline_at, procurementMethod: row.procurement_method ?? "官方未公布", stage: row.stage ?? "官方未公布", jointVentureRequirement: row.joint_venture_requirements ?? "官方未公布", localRegistrationRequirement: row.local_registration_requirements ?? "官方未公布", chinaParticipation: row.china_eligible === true ? "可以参与" : row.china_eligible === false ? "不可参与" : "待人工核实", qualificationRequirementsZh: row.qualification_requirements_zh ?? "官方未公布", scopeZh: row.scope_zh ?? "官方未公布", summaryZh: row.summary_zh ?? "官方未公布", riskTipsZh: row.risks_zh ?? [], score, stars: scoreToStars(score), credibility: row.credibility ?? 0, aiUpdatedAt: row.ai_analyzed_at ?? "", status: row.status, gate: row.gate, links: (row.project_links ?? []).map((link: any) => ({ label: link.link_type, type: link.link_type, url: link.url, isOfficial: link.is_official, isValid: (link.http_status ?? 200) < 400, isPdf: link.is_pdf, httpStatus: link.http_status })), addendaCount: 0, clarificationCount: 0, isFavorite: row.is_favorite, participatedCompanyName: row.participated_company_name, completedAt: row.completed_at, reviewStatus: row.review_status, createdAt: row.created_at, translationStatus: row.translation_status ?? (/[\u3400-\u9fff]/.test(String(row.title_zh ?? "")) ? "translated" : "pending"), aiAnalysisStatus: row.ai_analysis_status ?? (row.ai_analyzed_at ? "success" : "pending") };
 }
