@@ -35,7 +35,7 @@ function Recrawl() { return <section className="card"><h2>立即重新抓取</h2
 
 async function ProjectTable({ module, supabase }: { module: string; supabase: ReturnType<typeof getServiceSupabase> }) {
   let query = supabase.from("projects").select("id,title_zh,title_en,country,financier,status,review_status,gate,ai_score,credibility,deadline_at,updated_at").order("updated_at", { ascending: false }).limit(100);
-  if (module === "manual-review" || module === "pending-verification") query = query.or("review_status.eq.pending,status.eq.待人工核实,gate.eq.pending_review");
+  if (module === "manual-review" || module === "pending-verification") query = query.eq("review_status", "pending").eq("gate", "pending_review");
   if (module === "favorites") query = query.eq("is_favorite", true);
   if (module === "key-projects") query = query.gte("ai_score", 80);
   if (module === "awarded") query = query.eq("status", "已授标");

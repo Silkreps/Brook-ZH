@@ -58,3 +58,31 @@ where ai_analyzed_at is not null and ai_analysis_status = 'pending';
 create index if not exists projects_public_filter_idx
   on projects(section, translation_status, status, deadline_at, created_at desc);
 create index if not exists projects_favorites_idx on projects(updated_at desc) where is_favorite = true;
+
+-- Review state is authoritative: pending items never share the approved public gate.
+update projects set gate = case review_status
+  when 'approved' then 'official'::project_gate
+  when 'rejected' then 'blocked'::project_gate
+  else 'pending_review'::project_gate
+end;
+alter table projects drop constraint if exists projects_review_status_check;
+alter table projects add constraint projects_review_status_check
+  check (review_status in ('approved', 'pending', 'rejected'));
+alter table projects drop constraint if exists projects_review_gate_check;
+alter table projects add constraint projects_review_gate_check check (
+  (review_status = 'approved' and gate = 'official') or
+  (review_status = 'pending' and gate = 'pending_review') or
+  (review_status = 'rejected' and gate = 'blocked')
+);
+create index if not exists projects_review_queue_idx
+  on projects(created_at desc) where review_status = 'pending' and gate = 'pending_review';
+
+-- RLS exposes only approved projects to direct anonymous clients. The server-side
+-- service role is required for the review queue and all review mutations.
+drop policy if exists "Public can read approved projects" on projects;
+create policy "Public can read approved projects" on projects for select to anon
+  using (review_status = 'approved' and gate = 'official');
+drop policy if exists "Public can read approved project links" on project_links;
+create policy "Public can read approved project links" on project_links for select to anon
+  using (exists (select 1 from projects where projects.id = project_links.project_id
+    and projects.review_status = 'approved' and projects.gate = 'official'));

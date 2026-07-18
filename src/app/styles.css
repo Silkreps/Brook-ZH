@@ -36,6 +36,11 @@ input, select { width: 100%; box-sizing: border-box; padding: 11px 12px; border:
 .result-box, pre { white-space: pre-wrap; word-break: break-word; background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 12px; max-height: 420px; overflow: auto; }
 button.button { border: 0; cursor: pointer; font: inherit; font-weight: 800; }
 button.button:disabled { opacity: .65; cursor: wait; }
+.review-notice { margin: 16px 0; }
+.review-notice a { margin-left: 4px; }
+.review-button { border: 0; border-radius: 999px; padding: 9px 18px; color: white; cursor: pointer; font: inherit; font-weight: 800; }
+.review-button.approve { background: #047857; }
+.review-button.reject { background: #b91c1c; }
 .list-heading { display:flex; justify-content:space-between; gap:20px; align-items:end; margin:24px 0 12px; }
 .count { color:#0f6bff; font-size:20px; white-space:nowrap; }
 .project-list { display:grid; gap:16px; }
