@@ -1,5 +1,5 @@
 import { analyzeProject } from "./ai";
-import { decideProjectGate, isEngineeringProcurement } from "./rules";
+import { classifyProcurementSection, isEngineeringProcurement } from "./rules";
 import { getServiceSupabase } from "./supabase";
 import { officialSourceAdapters } from "./official-sources";
 import type { ProjectCandidate, RunSummary } from "./types";
@@ -25,9 +25,9 @@ export async function runProcurementCycle(): Promise<RunSummary> {
 }
 
 function isAllowedCandidate(c: ProjectCandidate) { const text = `${c.titleEn} ${c.procurementMethod ?? ""} ${c.stage ?? ""} ${c.noticeText ?? ""}`; if (!c.officialUrl || !/^https:\/\//.test(c.officialUrl)) return false; if (CLOSED.test(text) || LOCAL_ONLY.test(text)) return false; if (c.deadlineAt && new Date(c.deadlineAt).getTime() <= Date.now()) return false; return c.section === "pipeline" || isEngineeringProcurement({ procurementType: c.procurementMethod, stage: c.stage, title: c.titleEn, noticeText: c.noticeText }); }
-async function saveCandidate(c: ProjectCandidate) { const country = resolveCountry(c.country, c.titleEn); if (country.isChina) throw new Error("安全拦截：中国项目禁止写入 Supabase"); const supabase = getServiceSupabase(); const linkOk = await checkOfficialDetailLink(c.officialUrl); const ai = await analyzeProject(c); const amountUsd = normalizeAmount(c.amount, c.currency); const gateText = decideProjectGate({ isInternationalOpen: true, chinaEligible: country.recognized && ai.chinaParticipation === "可以参与" ? true : null, amountUsd, deadline: c.deadlineAt, officialLinkValid: linkOk, authentic: true, procurementType: c.procurementMethod, stage: c.stage, title: c.titleEn, noticeText: c.noticeText, country: country.country }); const gate = !country.recognized ? "pending_review" : gateText === "正式项目库" ? "official" : gateText === "禁止推送" ? "blocked" : "pending_review"; const key = buildSourceKey(c);
+async function saveCandidate(c: ProjectCandidate) { const country = resolveCountry(c.country, c.titleEn); if (country.isChina) throw new Error("安全拦截：中国项目禁止写入 Supabase"); const supabase = getServiceSupabase(); const linkOk = await checkOfficialDetailLink(c.officialUrl); const ai = await analyzeProject(c); const amountUsd = normalizeAmount(c.amount, c.currency); const classified = classifyProcurementSection({ procurementType: c.procurementMethod, stage: c.stage, title: c.titleEn, noticeText: c.noticeText }); const complete = Boolean(c.titleEn && c.financier && c.procurementNo && c.publishedAt); const engineering = classified === "pipeline" || isEngineeringProcurement({ procurementType: c.procurementMethod, stage: c.stage, title: c.titleEn, noticeText: c.noticeText }); const gate = country.recognized && classified && linkOk && complete && engineering ? "official" : "pending_review"; const key = buildSourceKey(c);
   const payload = {
-    section: c.section,
+    section: classified ?? c.section,
     gate,
     title_zh: requiredText(ai.titleZh, c.titleEn),
     title_en: requiredText(c.titleEn, "待人工核实"),
@@ -43,7 +43,7 @@ async function saveCandidate(c: ProjectCandidate) { const country = resolveCount
     published_at: nullableIsoDate(c.publishedAt),
     procurement_method: nullableText(c.procurementMethod),
     stage: nullableText(c.stage),
-    status: gate === "blocked" ? "待人工核实" : "未截止",
+    status: gate === "pending_review" ? "待人工核实" : "未截止",
     china_eligible: ai.chinaParticipation === "可以参与" ? true : ai.chinaParticipation === "不可参与" ? false : null,
     joint_venture_requirements: requiredText(ai.jointVentureRequirement, "待人工核实"),
     local_registration_requirements: requiredText(ai.localRegistrationRequirement, "待人工核实"),

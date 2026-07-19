@@ -22,7 +22,7 @@ export function isPublicProject(p: TenderProject) {
     && !FORBIDDEN_PROCUREMENT.test(text) && !PUBLICLY_CLOSED.test(text)
     && deadlineIsValid && (p.section === "pipeline" || Boolean(p.deadlineAt))
     && p.chinaParticipation !== "不可参与"
-    && isEngineeringProcurement({ title: p.titleEn, procurementType: p.procurementMethod, stage: p.stage });
+    && (p.section === "pipeline" || isEngineeringProcurement({ title: p.titleEn, procurementType: p.procurementMethod, stage: p.stage }));
 }
 export const isActiveProcurement = isPublicProject;
 export function isEligibleTender(p: TenderProject) { return p.section === "tender" && isPublicProject(p); }
